@@ -1,20 +1,22 @@
-import json
 import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 
 class InitalLoad():
-    def __init__(self, source_form_data):
+    def __init__(self, source_form_data, new_date_db, data_db, date_written_db):
         self.source_form_data = source_form_data
-
+        self.new_date_db = new_date_db
+        self.data_db = data_db
+        self.date_written_db = date_written_db
+        
     def inital_load(self):
+        self.new_date_db.truncate()
         last_six_months = self._calculate_last_six_months()
         print(f'Loading data up to and including: {last_six_months}')
-        data = requests.get('https://nuforc.org/webreports/ndxpost.html')
+        data = requests.get('https://nuforc.org/ndx/?id=post')
         soup = BeautifulSoup(data.content, 'html.parser')
         s = soup.find_all('td')
         data = []
-        new_date = None
         number_of_records = 0
         for item in s[0::2]:
             encounters = []
@@ -24,13 +26,7 @@ class InitalLoad():
                 if date_obj >= last_six_months:
                     link = item.find('a', href=True).get('href')
                     encounters.extend(self._get_data_details(link))
-                    if new_date is None:
-                        new_date = date_obj
-                        with open('data/db/new_date.txt', 'w') as file:
-                            file.write(json.dumps({'day': new_date.day, 'month': new_date.month, 'year': new_date.year, 'link': link}))
-                    elif new_date <= date_obj:
-                        with open('data/db/new_date.txt', 'w') as file:
-                            file.write(json.dumps({'day': new_date.day, 'month': new_date.month, 'year': new_date.year, 'link': link}))
+                    self.new_date_db.insert({'day': date_obj.day, 'month': date_obj.month, 'year': date_obj.year, 'link': link})
                     number_of_records = len(encounters) + number_of_records
                     data.append({'link': link, 'day': date_obj.day, 'month': date_obj.month, 'year': date_obj.year, 'data': encounters})
                 else:
@@ -44,14 +40,12 @@ class InitalLoad():
                 else:
                     break
         print(f'Sucessfully loaded {number_of_records} records.')
-        # Writing data to txt file to represent a DB 
-        with open('data/db/data.txt', 'w') as file:
-            file.write(json.dumps(data))
+        # Writing data to DB 
+        self.data_db.insert_multiple(data)
         # Writing current day and time so updates can be run/checked
         now = datetime.now()
         current_date = {'day': now.day, 'month': now.month, 'year': now.year, 'day': now.day, 'hour': now.hour, 'minute': now.minute}
-        with open('data/db/date_written.txt', 'w') as file:
-            file.write(json.dumps(current_date))
+        self.date_written_db.insert(current_date)
 
     def _get_data_details(self, table_id):
         last_six_months = self._calculate_last_six_months()

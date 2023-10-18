@@ -1,46 +1,47 @@
-import json
 from itertools import filterfalse
 from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
 
 class UpdateData():
-    def __init__(self, source_form_data):
+    def __init__(self, source_form_data, new_date_db, data_db, date_written_db):
         self.source_form_data = source_form_data
+        self.new_date_db = new_date_db
+        self.data_db = data_db
+        self.date_written_db = date_written_db
 
     def update_data(self, force_update=False):
         if force_update:
             print('User forced DB update initiated.')
 
-        with open('data/db/date_written.txt') as file:
-            json_data = json.load(file)
+        data = self.date_written_db.all()[0]
         
         current_date = datetime.now()
-        amount_of_time_passed = current_date - datetime(year=json_data.get('year'), month=json_data.get('month'), day=json_data.get('day'), minute=json_data.get('minute'), hour=json_data.get('hour'))
+        amount_of_time_passed = current_date - datetime(year=data.get('year'), month=data.get('month'), day=data.get('day'), minute=data.get('minute'), hour=data.get('hour'))
 
         if amount_of_time_passed.days >= 1 or force_update:
             print('Last data load is more than 24hrs old or forced update. Removing old data and adding new data')
             self._remove_old_records()
             self._add_new_records()
             current_date = {'day': current_date.day, 'month': current_date.month, 'year': current_date.year, 'day': current_date.day, 'hour': current_date.hour, 'minute': current_date.minute}
-            with open('data/db/date_written.txt', 'w') as file:
-                file.write(json.dumps(current_date))
+            self.date_written_db.truncate()
+            self.date_written_db.insert(current_date)
         else:
             print('Outside of 24hr threshold. Skipping data update.')
 
     def _remove_old_records(self):
-        with open('data/db/data.txt') as file:
-            json_data = json.load(file)
+        db_data = self.data_db.all()
+        self.data_db.truncate()
         
         print('Removing old tables.')
-        prev_tables = len(json_data)
-        json_data[:] = filterfalse(lambda x: self._is_data_not_too_old(x.get('day'), x.get('month'), x.get('year')), json_data)
-        new_tables = len(json_data)
+        prev_tables = len(db_data)
+        db_data[:] = filterfalse(lambda x: self._is_data_not_too_old(x.get('day'), x.get('month'), x.get('year')), db_data)
+        new_tables = len(db_data)
         print(f'Outdated tables removed: {prev_tables - new_tables}')
         
         print('Removing old records.')
         removed_records = 0
-        for value in json_data:
+        for value in db_data:
             prev_size = len(value.get('data'))
             value['data'] = list(filterfalse(lambda x: self._is_data_not_too_old(x.get('day'), x.get('month'), x.get('year')), value.get('data')))
             new_size = len(value.get('data'))
@@ -48,18 +49,17 @@ class UpdateData():
         print(f'Removed total records {removed_records}')
 
         print('Writing any possible changes to table')
-        with open('data/db/data.txt', 'w') as file:
-            file.write(json.dumps(json_data))
+        self.data_db.insert_multiple(db_data)
 
     def _add_new_records(self):
         print('Checking for new data.')
-        with open('data/db/data.txt') as file:
-            json_data = json.load(file)
-        data = requests.get('https://nuforc.org/webreports/ndxpost.html')
+        db_data = self.data_db.all()
+        self.data_db.truncate()
+        
+        data = requests.get('https://nuforc.org/ndx/?id=post')
         soup = BeautifulSoup(data.content, 'html.parser')
         s = soup.find_all('td')
-        with open('data/db/new_date.txt') as file:
-            latest_date = json.load(file)
+        latest_date = self.new_date_db.all()[0]
         latest_date = datetime(year=latest_date.get('year'), month=latest_date.get('month'), day=latest_date.get('day')).date()
         latest_date_new = None
         total_new_records = 0
@@ -80,17 +80,16 @@ class UpdateData():
                         latest_date_new = (date_obj, link)
                     encounters.extend(self._get_data_details(link))
                     total_new_records = total_new_records + len(encounters)
-                    json_data.append({'link': link, 'day': date_obj.day, 'month': date_obj.month, 'year': date_obj.year, 'data': encounters})
+                    db_data.append({'link': link, 'day': date_obj.day, 'month': date_obj.month, 'year': date_obj.year, 'data': encounters})
             except:
                 date_str = item.find('a', href=True).text.strip()
                 print(f'Invalid value for record on date: {date_str}')
         
         if total_new_records > 0:
             print(f'Total number of new records: {total_new_records}')
-            with open('data/db/data.txt', 'w') as file:
-                file.write(json.dumps(json_data))
-            with open('data/db/new_date.txt', 'w') as file:
-                file.write(json.dumps({'day': latest_date_new[0].day, 'month': latest_date_new[0].month, 'year': latest_date_new[0].year, 'link': latest_date_new[1]}))
+            self.data_db.insert(db_data)
+            self.new_date_db.truncate()
+            self.new_date_db.insert({'day': latest_date_new[0].day, 'month': latest_date_new[0].month, 'year': latest_date_new[0].year, 'link': latest_date_new[1]})
         else:
             print('No new data found. Not appending new data to table.')
 

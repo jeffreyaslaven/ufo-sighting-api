@@ -3,17 +3,20 @@ from contextlib import asynccontextmanager
 from data.initial_load import InitalLoad
 from data.update_data import UpdateData
 from service.get_sightings import GetSightings
-import os
+from tinydb import TinyDB
 
 # ENTER SESSION/FORM DATA HERE
 national_ufo_form_string = ''
-initial_load = InitalLoad(national_ufo_form_string)
-update_data = UpdateData(national_ufo_form_string)
-get_sightings = GetSightings()
+new_date_db = TinyDB('data/db/new_date.json')
+data_db = TinyDB('data/db/data.json')
+date_written_db = TinyDB('data/db/date_written.json')
+initial_load = InitalLoad(national_ufo_form_string, new_date_db, data_db, date_written_db)
+update_data = UpdateData(national_ufo_form_string, new_date_db, data_db, date_written_db)
+get_sightings = GetSightings(data_db)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    if os.stat("data/db/data.txt").st_size == 0:
+    if len(data_db.all()) == 0:
         initial_load.inital_load()
     else:
         print('DB populated. Skipping initial DB load')

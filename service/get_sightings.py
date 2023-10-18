@@ -1,8 +1,6 @@
-import json
-
 class GetSightings():
-    def __init__(self):
-        pass
+    def __init__(self, data_db):
+        self.data_db = data_db
 
     def get_all_sightings(self):
         result = self._get_only_sightings_db()
@@ -64,13 +62,5 @@ class GetSightings():
         
         return all(result)
 
-    @staticmethod
-    def _load_db_to_memory():
-        with open('data/db/data.txt') as file:
-            json_data = json.load(file)
-        return json_data
-    
-    @staticmethod
-    def _write_data_to_db(data):
-        with open('data/db/data.txt', 'w') as file:
-            file.write(json.dumps(data))
+    def _load_db_to_memory(self):
+        return self.data_db.all()

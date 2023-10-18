@@ -17,6 +17,7 @@ This project uses the following packages to run it locally:
 * [FastAPI](https://fastapi.tiangolo.com)
 * [BeautifulSoup](https://pypi.org/project/beautifulsoup4/)
 * [Requests](https://pypi.org/project/requests/)
+* [TinyDB](https://tinydb.readthedocs.io/en/latest/index.html)
 
 Run the following command to install dependencies required to run the API locally in your terminal/command prompt: 
 
@@ -85,6 +86,5 @@ _Body_:
 ### Future considerations
 
 * Add automated tests using Pytest and unittest. It has been tested extensively for functionality, and overall reliability, outside of using automated frameworks. This approach would however not be sustainable as the API scales/new functionality is added. 
-* Use an actual NoSQL DB (i.e. MongoDB, DynamoDB) for storing the data as opposed to text files representing one.
 * Consider deploying and configuring this api within a container (i.e. Docker).
 * Automate the session/token process so the you don't have to manually go to the website to generate it.
